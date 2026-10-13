@@ -1,0 +1,31 @@
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#222;font-family:'Jua','Hiragino Round','Malgun Gothic',system-ui,sans-serif}
+#stage{position:fixed;inset:0;overflow:hidden;background:#000}
+#cam,#art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#cam{background:#111}
+#art{pointer-events:none}
+#cam.mirror{transform:scaleX(-1)}
+#art.mirror{transform:scaleX(-1)}
+
+#topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;pointer-events:none}
+.logo{background:#fff;border:3px solid #222;border-radius:20px;padding:6px 14px;font-weight:800;transform:rotate(-3deg);box-shadow:3px 3px 0 #222}
+#styles{display:flex;gap:6px;pointer-events:auto}
+.style-btn{border:3px solid #222;border-radius:16px;padding:8px 12px;font-weight:800;font-size:14px;background:#fff;cursor:pointer;box-shadow:2px 2px 0 #222}
+.style-btn.active{background:#ffe066;transform:rotate(-2deg) scale(1.05)}
+
+#status{position:absolute;top:calc(64px + env(safe-area-inset-top));left:50%;transform:translateX(-50%) rotate(1deg);background:rgba(255,255,255,.92);border:2.5px solid #222;border-radius:14px;padding:4px 12px;font-size:13px;font-weight:700;white-space:nowrap}
+
+#bottombar{position:absolute;bottom:calc(26px + env(safe-area-inset-bottom));left:0;right:0;display:flex;justify-content:center;align-items:center;gap:22px}
+.doodle-btn{border:3.5px solid #222;background:#fff;border-radius:50%;cursor:pointer;box-shadow:3px 4px 0 #222;font-size:26px;display:flex;align-items:center;justify-content:center;transition:transform .1s}
+.doodle-btn:active{transform:scale(.92)}
+.doodle-btn.small{width:62px;height:62px}
+.doodle-btn.big{width:88px;height:88px;font-size:38px;background:#ffe066}
+#hint{position:absolute;bottom:calc(128px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);color:#fff;background:rgba(0,0,0,.45);padding:6px 14px;border-radius:14px;font-size:13px;white-space:nowrap}
+
+.overlay{position:fixed;inset:0;background:#fff8e7;display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+.hidden{display:none!important}
+.hand-card{border:4px solid #222;border-radius:24px;background:#fff;padding:28px 24px;max-width:340px;text-align:center;transform:rotate(-1.5deg);box-shadow:6px 6px 0 #222}
+.hand-title{font-size:22px;font-weight:900;margin-bottom:10px}
+.hand-card ol{text-align:left;font-size:14px}
+#btnRetry{border-radius:20px;padding:10px 20px;font-size:17px;font-weight:800;margin-top:8px}
+#toast{position:fixed;bottom:170px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 18px;border-radius:16px;font-size:14px;z-index:30}
