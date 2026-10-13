@@ -87,7 +87,7 @@ async function startCamera() {
   try { video.pause(); } catch {}
   video.srcObject = stream;
   video.classList.toggle("mirror", mirror());
-  try { await video.play(); } catch {}
+  try { await withTimeout(video.play(), 10000, "play-timeout"); } catch (e) { console.warn("play 대기:", e); }
   await new Promise((res) => { // 영상이 실제로 나올 때까지 대기
     if (video.readyState >= 2 && video.videoWidth) return res();
     const h = () => { video.removeEventListener("loadeddata", h); res(); };
