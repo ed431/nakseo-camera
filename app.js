@@ -13,6 +13,8 @@ let lastDetect = 0, lastVideoTime = -1;
 let char = "panda";           // 선택된 가면
 let faceChars = [];           // 얼굴별 가면 (random 모드용)
 let shuffleTick = 0;
+let switching = false;        // 카메라 전환 중 잠금
+let modelLoading = false;
 const CHARS = ["panda", "rabbit", "cat", "bear", "frog"];
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const mirror = () => facing === "user";
@@ -44,26 +46,57 @@ $("btnShuffle").onclick = () => {
   toast("🎲 가면 바꿨어요!");
 };
 
-// ---------- 카메라 ----------
+// ---------- 카메라 (새 카메라가 켜져야 예전 걸 끈다 — 실패해도 검은 화면 안 됨) ----------
+const withTimeout = (p, ms, msg) => Promise.race([
+  p, new Promise((_, rej) => setTimeout(() => rej(new Error(msg || "timeout")), ms))
+]);
 async function startCamera() {
-  if (stream) stream.getTracks().forEach(t => t.stop());
+  if (switching) return false;
+  switching = true;
+  setStatus("📷 카메라 켜는 중…");
+  let newStream = null;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
-    });
+    try {
+      newStream = await withTimeout(navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      }), 15000, "cam-timeout");
+    } catch (e1) {
+      // 폴드 등 전면/후면 지정이 먹지 않으면 기본 카메라로 재시도
+      console.warn("지정 카메라 실패, 기본으로 재시도:", e1);
+      newStream = await withTimeout(navigator.mediaDevices.getUserMedia({ video: true, audio: false }), 15000, "cam-timeout");
+    }
   } catch (e) {
-    if (e.name === "NotAllowedError" || e.name === "SecurityError" || e.name === "NotFoundError") {
+    switching = false;
+    console.warn(e);
+    if (e.name === "NotAllowedError" || e.name === "SecurityError") {
       $("denied").classList.remove("hidden");
       $("loading").classList.add("hidden");
-    } else toast("카메라를 열 수 없어요 😢 " + e.message);
+    } else if (e.message === "cam-timeout") {
+      toast("카메라가 응답 없어요 😢 다른 앱 카메라 끄고 다시 눌러주세요!");
+      setStatus("😢 카메라 응답 없음 — 🔄를 다시 눌러주세요");
+    } else {
+      toast("카메라를 열 수 없어요 😢 " + e.message);
+      setStatus("😢 카메라 실패 — 🔄를 다시 눌러주세요");
+    }
     return false;
   }
+  // 새 스트림 확보 성공 → 이제 예전 것 끄고 교체
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = newStream;
+  try { video.pause(); } catch {}
   video.srcObject = stream;
   video.classList.toggle("mirror", mirror());
   try { await video.play(); } catch {}
+  await new Promise((res) => { // 영상이 실제로 나올 때까지 대기
+    if (video.readyState >= 2 && video.videoWidth) return res();
+    const h = () => { video.removeEventListener("loadeddata", h); res(); };
+    video.addEventListener("loadeddata", h);
+    setTimeout(res, 5000);
+  });
   resizeCanvas();
   $("denied").classList.add("hidden");
+  switching = false;
   return true;
 }
 function resizeCanvas() {
@@ -72,14 +105,18 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 $("btnRetry").onclick = async () => { $("denied").classList.add("hidden"); $("loading").classList.remove("hidden"); await startCamera(); $("loading").classList.add("hidden"); };
 $("btnFlip").onclick = async () => {
+  if (switching) return;
   facing = facing === "environment" ? "user" : "environment";
-  setStatus("📷 카메라 전환 중…");
-  await startCamera();
+  const ok = await startCamera();
   faces = []; faceChars = [];
+  if (ok) setStatus(visionReady ? "✨ 얼굴을 화면 가운데에 맞춰보세요!" : "🧠 인식 준비 중…");
+  // 실패 시 startCamera가 이미 안내 문구를 보여줌 (예전 화면은 그대로 유지)
 };
 
 // ---------- 모델 로딩 (GPU 실패하면 CPU로 재시도 — 갤럭시 등 대응) ----------
-async function loadModels() {
+async function loadModels(retried = false) {
+  if (modelLoading) return;
+  modelLoading = true;
   setStatus("🧠 얼굴 인식 준비 중… (10초 정도)");
   try {
     const vision = await FilesetResolver.forVisionTasks(
@@ -99,14 +136,26 @@ async function loadModels() {
       });
     }
     visionReady = true;
+    modelLoading = false;
     setStatus("✨ 얼굴을 화면 가운데에 맞춰보세요!");
   } catch (e) {
     console.warn(e);
     visionReady = false;
-    setStatus("😢 인식 준비 실패 — 와이파이 확인 후 새로고침!");
-    toast("모델을 못 받았어요. 인터넷 확인 후 새로고침 해주세요!");
+    modelLoading = false;
+    if (!retried) { // 한 번은 자동으로 다시 받기
+      setStatus("🧠 인식 다시 받는 중… (잠시만요)");
+      setTimeout(() => loadModels(true), 4000);
+    } else {
+      setStatus("😢 인식 준비 실패 — 화면을 한 번 톡 터치!");
+      toast("모델을 못 받았어요. 와이파이 확인 후 화면을 톡 터치!");
+    }
   }
 }
+// 인식 실패 상태면 화면 터치로 다시 받기
+$("stage").addEventListener("click", (e) => {
+  if (e.target.closest("button")) return;
+  if (!visionReady && !modelLoading) loadModels();
+});
 
 // ---------- 인식 루프 ----------
 function detectLoop() {
