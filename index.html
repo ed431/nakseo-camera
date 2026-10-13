@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>낙서 카메라 📸</title>
+<title>캐릭터 가면 카메라 🐼</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,13 +11,16 @@
   <video id="cam" autoplay muted playsinline></video>
   <canvas id="art"></canvas>
 
-  <!-- 상단 스타일 선택 -->
+  <!-- 상단 캐릭터 선택 -->
   <div id="topbar">
-    <div class="logo">🖍️ 낙서카메라</div>
-    <div id="styles" role="tablist">
-      <button data-style="crayon" class="style-btn active">크레용</button>
-      <button data-style="marker" class="style-btn">매직펜</button>
-      <button data-style="high" class="style-btn">형광펜</button>
+    <div class="logo">🐼 가면카메라</div>
+    <div id="chars">
+      <button data-char="panda" class="char-btn active">🐼</button>
+      <button data-char="rabbit" class="char-btn">🐰</button>
+      <button data-char="cat" class="char-btn">🐱</button>
+      <button data-char="bear" class="char-btn">🐻</button>
+      <button data-char="frog" class="char-btn">🐸</button>
+      <button data-char="random" class="char-btn">🎲</button>
     </div>
   </div>
 
@@ -25,18 +28,18 @@
 
   <!-- 하단 버튼 -->
   <div id="bottombar">
-    <button id="btnShuffle" class="doodle-btn small" title="낙서 다시 섞기">🎲</button>
+    <button id="btnShuffle" class="doodle-btn small" title="가면 바꾸기">🎲</button>
     <button id="btnShot" class="doodle-btn big" title="사진 찍기">📸</button>
     <button id="btnFlip" class="doodle-btn small" title="전면/후면 전환">🔄</button>
   </div>
-  <div id="hint">얼굴을 비춰보세요! 컵·식물도 캐릭터가 돼요 ✨</div>
+  <div id="hint">얼굴을 화면 가운데에 맞춰주세요 ✨</div>
 </div>
 
 <!-- 로딩 -->
 <div id="loading" class="overlay">
   <div class="hand-card">
-    <div class="hand-title">🖍️ 낙서 준비 중…</div>
-    <p>크레용을 깎고 있어요!<br>잠시만 기다려 주세요.</p>
+    <div class="hand-title">🐼 가면 준비 중…</div>
+    <p>얼굴 인식 모델을 받고 있어요!<br>잠시만 기다려 주세요.</p>
   </div>
 </div>
 
@@ -46,8 +49,7 @@
     <div class="hand-title">📷 카메라를 허용해 주세요!</div>
     <p>이 앱은 카메라가 꼭 필요해요.</p>
     <ol>
-      <li>아이폰: 설정 → Safari → 카메라 → 허용</li>
-      <li>안드로이드: 주소창 자물쇠 → 카메라 허용</li>
+      <li>삼성 인터넷/크롬: 주소창 자물쇠 → 카메라 허용</li>
       <li>그리고 아래 버튼을 눌러 다시 시작!</li>
     </ol>
     <button id="btnRetry" class="doodle-btn">다시 시작 🌱</button>
