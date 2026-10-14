@@ -248,9 +248,9 @@ function blush(x, y, r) { E(x, y, r, r * 0.65, "rgba(255,120,160,.75)", null); }
 function maskPanda(f, t, s) {
   const { box } = f, cx = box.x + box.w / 2, cy = box.y + box.h / 2;
   const jx = wig(s, t, box.w * 0.008);
-  E(cx - box.w * 0.42 + jx, box.y + box.h * 0.04, box.w * 0.17, box.h * 0.15, "#2b2b2b", "#111", 4); // 귀
+  E(cx - box.w * 0.42 + jx, box.y + box.h * 0.04, box.w * 0.17, box.h * 0.15, "#2b2b2b", "#111", 4);
   E(cx + box.w * 0.42 + jx, box.y + box.h * 0.04, box.w * 0.17, box.h * 0.15, "#2b2b2b", "#111", 4);
-  E(cx + jx, cy, box.w * 0.62, box.h * 0.68, "rgba(255,255,255,.96)", "#222", 6); // 얼굴
+  // 얼굴은 가리지 않고 눈 패치만
   const ang = 0.5;
   [[f.leye, -1], [f.reye, 1]].forEach(([e]) => {
     ctx.save(); ctx.translate(e.x + jx, e.y); ctx.rotate(ang * (e === f.leye ? 1 : -1));
@@ -280,8 +280,15 @@ function maskRabbit(f, t, s) {
     ctx.restore();
   });
   const cy = box.y + box.h / 2, jx = wig(s + 3, t, box.w * 0.008);
-  E(cx + jx, cy, box.w * 0.58, box.h * 0.64, "rgba(255,255,255,.96)", "#222", 6);
-  [f.leye, f.reye].forEach(e => { E(e.x + jx, e.y, box.w * 0.045, box.h * 0.05, "#222", null); sparkle(e.x + jx - 3, e.y - 4, box.w * 0.016); });
+  // 얼굴은 가리지 않고 코·이빨·수염만
+  // 눈은 가리지 않고 눈꼬리 반짝이만
+  [[f.leye, -1], [f.reye, 1]].forEach(([e, d]) => {
+    const sx = e.x + d * box.w * 0.09 + jx, sy = e.y - box.h * 0.06;
+    ctx.strokeStyle = "#ffb800"; ctx.lineWidth = 4; ctx.beginPath();
+    ctx.moveTo(sx - 7, sy); ctx.lineTo(sx + 7, sy);
+    ctx.moveTo(sx, sy - 7); ctx.lineTo(sx, sy + 7); ctx.stroke();
+    sparkle(sx + d * 10, sy + 8, box.w * 0.012);
+  });
   E(f.nose.x + jx, f.nose.y + box.h * 0.05, box.w * 0.045, box.h * 0.035, "#ff8fb3", "#e05585", 3); // 분홍코
   ctx.fillStyle = "#fff"; ctx.strokeStyle = "#222"; ctx.lineWidth = 4; // 앞니
   const tw = box.w * 0.09, th = box.h * 0.09, tx = f.mouth.x - tw / 2 + jx, ty = f.mouth.y;
@@ -309,16 +316,20 @@ function maskCat(f, t, s) {
     ctx.lineTo(bx + box.w * 0.07, by + box.h * 0.05);
     ctx.closePath(); ctx.fill();
   });
-  E(cx + jx, cy, box.w * 0.6, box.h * 0.66, "rgba(245,167,66,.94)", "#222", 6);
-  ctx.strokeStyle = "#7a4a12"; ctx.lineWidth = 5; // 줄무늬
+  // 얼굴은 가리지 않고 귀·줄무늬·아이라인만
+  ctx.strokeStyle = "#7a4a12"; ctx.lineWidth = 5; // 이마 줄무늬
   [-0.2, 0, 0.2].forEach(k => {
     ctx.beginPath(); ctx.moveTo(cx + box.w * k + jx, box.y + box.h * 0.02);
     ctx.lineTo(cx + box.w * k + jx, box.y + box.h * 0.14); ctx.stroke();
   });
-  [f.leye, f.reye].forEach(e => { // 눈 (세로동공)
-    E(e.x + jx, e.y, box.w * 0.05, box.h * 0.06, "#2f7a3d", "#222", 3);
-    E(e.x + jx, e.y, box.w * 0.012, box.h * 0.045, "#111", null);
-    sparkle(e.x + jx - 4, e.y - 5, box.w * 0.014);
+  // 눈은 가리지 않고 아이라인만 (눈 위 선 + 눈꼬리 삐침)
+  [[f.leye, -1], [f.reye, 1]].forEach(([e, d]) => {
+    ctx.strokeStyle = "#222"; ctx.lineWidth = Math.max(3, box.w * 0.014); ctx.beginPath();
+    ctx.moveTo(e.x - box.w * 0.055 + jx, e.y - box.h * 0.045);
+    ctx.quadraticCurveTo(e.x + jx, e.y - box.h * 0.075, e.x + box.w * 0.055 + jx, e.y - box.h * 0.04);
+    ctx.lineTo(e.x + d * box.w * 0.085 + jx, e.y - box.h * 0.075); // 삐침
+    ctx.stroke();
+    sparkle(e.x - d * box.w * 0.07 + jx, e.y - box.h * 0.09, box.w * 0.013);
   });
   E(f.nose.x + jx, f.nose.y + box.h * 0.05, box.w * 0.04, box.h * 0.03, "#e05585", null); // 코+입
   ctx.strokeStyle = "#222"; ctx.lineWidth = 4; ctx.beginPath();
@@ -343,9 +354,10 @@ function maskBear(f, t, s) {
     E(cx + d * box.w * 0.4 + jx, box.y + box.h * 0.05, box.w * 0.15, box.h * 0.13, "#8a5a2b", "#222", 6);
     E(cx + d * box.w * 0.4 + jx, box.y + box.h * 0.05, box.w * 0.07, box.h * 0.06, "#e8c39a", null);
   });
-  E(cx + jx, cy, box.w * 0.6, box.h * 0.66, "rgba(160,110,60,.95)", "#222", 6);
+  // 얼굴은 가리지 않고 귀·주둥이(입 주변만)만
   E(cx + jx, f.mouth.y - box.h * 0.06, box.w * 0.22, box.h * 0.2, "rgba(232,195,154,.95)", null); // 주둥이
-  [f.leye, f.reye].forEach(e => { E(e.x + jx, e.y, box.w * 0.042, box.h * 0.048, "#222", null); sparkle(e.x + jx - 3, e.y - 4, box.w * 0.015); });
+  // 눈은 가리지 않고 눈 밑 꿀 반짝이만
+  [f.leye, f.reye].forEach(e => sparkle(e.x + jx + box.w * 0.05, e.y + box.h * 0.07, box.w * 0.016));
   E(f.nose.x + jx, f.nose.y + box.h * 0.04, box.w * 0.07, box.h * 0.05, "#3a2410", null);
   ctx.strokeStyle = "#3a2410"; ctx.lineWidth = 4; ctx.beginPath();
   ctx.moveTo(f.nose.x + jx, f.nose.y + box.h * 0.09);
@@ -366,7 +378,7 @@ function maskFrog(f, t, s) {
     E(e.x + jx, box.y - box.h * 0.02, box.w * 0.032, box.h * 0.032, "#222", null);
     sparkle(e.x + jx - 4, box.y - box.h * 0.05, box.w * 0.014);
   });
-  E(cx + jx, cy + box.h * 0.05, box.w * 0.6, box.h * 0.62, "rgba(76,175,80,.93)", "#222", 6);
+  // 얼굴은 가리지 않고 눈툭튀·웃음·볼터치만
   ctx.strokeStyle = "#1d5c22"; ctx.lineWidth = 6; ctx.beginPath(); // 활짝 웃음
   ctx.arc(cx + jx, f.mouth.y - box.h * 0.12, box.w * 0.2, 0.15 * Math.PI, 0.85 * Math.PI);
   ctx.stroke();
