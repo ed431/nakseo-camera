@@ -1,6 +1,6 @@
 // 가면카메라 — 얼굴에 판다/토끼/고양이/곰/개구리 가면을 씌운다
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
-import { drawMask, CHARS } from "./masks.js?v=8";
+import { drawMask, CHARS } from "./masks.js?v=9";
 
 const $ = (id) => document.getElementById(id);
 const video = $("cam"), canvas = $("art"), ctx = canvas.getContext("2d");
@@ -95,12 +95,62 @@ async function startCamera() {
     setTimeout(res, 5000);
   });
   resizeCanvas();
+  setupZoom();
   $("denied").classList.add("hidden");
   switching = false;
   return true;
 }
+// 캔버스는 화면 비율 그대로 (예전엔 카메라 비율이라 세로 화면에서 잘려 확대돼 보였음)
 function resizeCanvas() {
-  if (video.videoWidth) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; }
+  const st = $("stage"), cw = st.clientWidth || 360, ch = st.clientHeight || 640;
+  const L = Math.max(video.videoWidth, video.videoHeight) || 1280;
+  const w = cw >= ch ? L : Math.round(L * cw / ch), h = cw >= ch ? Math.round(L * ch / cw) : L;
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+}
+// 카메라 영상을 캔버스 어디에 얼마나 크게 놓을지 (기본은 넓게, swZoom으로 확대/축소)
+let swZoom = 1;
+function layout() {
+  const W = canvas.width, H = canvas.height, vw = video.videoWidth || W, vh = video.videoHeight || H;
+  const cover = Math.max(W / vw, H / vh), contain = Math.min(W / vw, H / vh);
+  const floor = Math.min(contain, cover * 0.6);
+  const k = cover * Math.pow(floor / cover, 0.7) * swZoom; // 꽉 채움과 전체 보기 사이, 전체 보기 쪽에 가깝게
+  const dw = vw * k, dh = vh * k;
+  return { dx: (W - dw) / 2, dy: (H - dh) / 2, dw, dh, fills: dw >= W - 1 && dh >= H - 1 };
+}
+
+// ---------- 배율 (폰 카메라 배율 지원하면 그걸, 아니면 화면 배율) ----------
+let hwZoom = null; // { min, max } — 하드웨어 배율 범위
+function setupZoom() {
+  const bar = $("zoombar"), track = stream && stream.getVideoTracks()[0];
+  let caps = {};
+  try { caps = (track && track.getCapabilities && track.getCapabilities()) || {}; } catch {}
+  hwZoom = caps.zoom && caps.zoom.max > caps.zoom.min ? { min: caps.zoom.min, max: caps.zoom.max } : null;
+  let levels;
+  if (hwZoom) {
+    levels = [0.5, 0.6, 1, 2, 3, 5].filter(v => v >= hwZoom.min - 0.001 && v <= hwZoom.max + 0.001);
+    const mn = Math.round(hwZoom.min * 10) / 10;
+    if (mn < 1 && !levels.includes(mn)) levels.unshift(mn);
+    if (!levels.includes(1)) levels.push(1);
+    levels = [...new Set(levels)].sort((a, b) => a - b).slice(0, 5);
+  } else levels = [0.5, 0.7, 1, 2];
+  bar.innerHTML = "";
+  levels.forEach(v => {
+    const b = document.createElement("button");
+    b.className = "zoom-chip"; b.dataset.z = v;
+    b.textContent = (v < 1 ? String(v).replace(/^0/, "") : v) + "x";
+    b.onclick = () => setZoom(v);
+    bar.appendChild(b);
+  });
+  setZoom(1, true);
+}
+async function setZoom(v, quiet) {
+  document.querySelectorAll(".zoom-chip").forEach(b => b.classList.toggle("active", +b.dataset.z === v));
+  if (hwZoom) {
+    swZoom = 1;
+    try { await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ zoom: v }] }); }
+    catch (e) { console.warn("배율 실패:", e); hwZoom = null; swZoom = v; } // 하드웨어 실패 → 화면 배율로
+  } else swZoom = v;
+  if (!quiet) toast(`🔍 ${v}x`, 900);
 }
 window.addEventListener("resize", resizeCanvas);
 $("btnRetry").onclick = async () => { $("denied").classList.add("hidden"); $("loading").classList.remove("hidden"); await startCamera(); $("loading").classList.add("hidden"); };
@@ -164,9 +214,9 @@ function detectLoop() {
     lastDetect = now; lastVideoTime = video.currentTime;
     try {
       const fr = faceLM.detectForVideo(video, video.currentTime * 1000);
-      const W = canvas.width, H = canvas.height;
+      const W = canvas.width, Lo = layout();
       faces = (fr.faceLandmarks || []).map(lm => {
-        const P = (i) => ({ x: lm[i].x * W, y: lm[i].y * H });
+        const P = (i) => ({ x: Lo.dx + lm[i].x * Lo.dw, y: Lo.dy + lm[i].y * Lo.dh });
         const avg = (a) => ({ x: a.reduce((s, p) => s + p.x, 0) / a.length, y: a.reduce((s, p) => s + p.y, 0) / a.length });
         let f = {
           leye: avg([P(33), P(133), P(159), P(145)]),
@@ -175,7 +225,7 @@ function detectLoop() {
         };
         let minX = 1, minY = 1, maxX = 0, maxY = 0;
         for (const p of lm) { if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y; if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y; }
-        f.box = { x: minX * W, y: minY * H, w: (maxX - minX) * W, h: (maxY - minY) * H };
+        f.box = { x: Lo.dx + minX * Lo.dw, y: Lo.dy + minY * Lo.dh, w: (maxX - minX) * Lo.dw, h: (maxY - minY) * Lo.dh };
         if (mirror()) {
           const mx = (p) => ({ x: W - p.x, y: p.y });
           f.leye = mx(f.leye); f.reye = mx(f.reye); f.nose = mx(f.nose);
@@ -212,17 +262,24 @@ function drawLoop(t) {
   const W = canvas.width, H = canvas.height;
   // ----- 뽀샤시 베이스: 몽글 + 밝게 + 분홍 광 (저장되는 사진과 똑같이 보임) -----
   if (video.readyState >= 2 && video.videoWidth) {
-    const bw = 240, bh = Math.max(2, Math.round(240 * H / W));
+    const bw = 240, bh = Math.max(2, Math.round(240 * video.videoHeight / video.videoWidth));
     if (beauty.width !== bw || beauty.height !== bh) { beauty.width = bw; beauty.height = bh; }
     bctx.drawImage(video, 0, 0, bw, bh);
+    const Lo = layout();
     ctx.save();
     if (mirror()) { ctx.translate(W, 0); ctx.scale(-1, 1); }
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+    if (!Lo.fills) { // 영상이 화면보다 작으면 남는 곳은 흐린 배경으로 채움
+      const c = Math.max(W / bw, H / bh) * 1.1;
+      ctx.filter = "blur(6px) brightness(1.05) saturate(1.2)";
+      ctx.drawImage(beauty, (W - bw * c) / 2, (H - bh * c) / 2, bw * c, bh * c);
+      ctx.fillStyle = "rgba(255,235,245,.35)"; ctx.fillRect(0, 0, W, H);
+    }
     ctx.filter = "brightness(1.12) saturate(1.3) contrast(.96)";
-    ctx.drawImage(beauty, 0, 0, W, H);       // 몽글 베이스
+    ctx.drawImage(beauty, Lo.dx, Lo.dy, Lo.dw, Lo.dh);       // 몽글 베이스
     ctx.filter = "brightness(1.1) saturate(1.25)";
     ctx.globalAlpha = 0.5;
-    ctx.drawImage(video, 0, 0, W, H);        // 디테일 살리기
+    ctx.drawImage(video, Lo.dx, Lo.dy, Lo.dw, Lo.dh);        // 디테일 살리기
     ctx.restore();
     ctx.fillStyle = "rgba(255,170,200,.07)"; // 분홍 광
     ctx.fillRect(0, 0, W, H);
