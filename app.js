@@ -193,9 +193,54 @@ function detectLoop() {
 }
 
 // ---------- 그리기 ----------
+const beauty = document.createElement("canvas");
+const bctx = beauty.getContext("2d");
 const wig = (seed, t, amp) => Math.sin(t * 0.008 + seed) * amp + Math.sin(t * 0.021 + seed * 2) * amp * 0.4;
+// 눈周 뽀샤시 광 + 십자 반짝이
+function eyeGlow(f) {
+  const ed = Math.hypot(f.leye.x - f.reye.x, f.leye.y - f.reye.y);
+  [f.leye, f.reye].forEach(e => {
+    const g = ctx.createRadialGradient(e.x, e.y, 2, e.x, e.y, ed);
+    g.addColorStop(0, "rgba(255,255,255,.35)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(e.x, e.y, ed, 0, 7); ctx.fill();
+  });
+}
+function plusSparkle(x, y, r, color) {
+  ctx.strokeStyle = color; ctx.lineWidth = Math.max(3, r * 0.45); ctx.beginPath();
+  ctx.moveTo(x - r, y); ctx.lineTo(x + r, y);
+  ctx.moveTo(x, y - r); ctx.lineTo(x, y + r); ctx.stroke();
+  ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x, y, r * 0.28, 0, 7); ctx.fill();
+}
+function heartNose(x, y, s, color) {
+  ctx.fillStyle = color; ctx.beginPath();
+  ctx.moveTo(x, y + s * 0.6);
+  ctx.bezierCurveTo(x - s * 1.1, y - s * 0.1, x - s * 0.5, y - s * 0.9, x, y - s * 0.25);
+  ctx.bezierCurveTo(x + s * 0.5, y - s * 0.9, x + s * 1.1, y - s * 0.1, x, y + s * 0.6);
+  ctx.fill();
+}
 function drawLoop(t) {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const W = canvas.width, H = canvas.height;
+  // ----- 뽀샤시 베이스: 몽글 + 밝게 + 분홍 광 (저장되는 사진과 똑같이 보임) -----
+  if (video.readyState >= 2 && video.videoWidth) {
+    const bw = 240, bh = Math.max(2, Math.round(240 * H / W));
+    if (beauty.width !== bw || beauty.height !== bh) { beauty.width = bw; beauty.height = bh; }
+    bctx.drawImage(video, 0, 0, bw, bh);
+    ctx.save();
+    if (mirror()) { ctx.translate(W, 0); ctx.scale(-1, 1); }
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+    ctx.filter = "brightness(1.12) saturate(1.3) contrast(.96)";
+    ctx.drawImage(beauty, 0, 0, W, H);       // 몽글 베이스
+    ctx.filter = "brightness(1.1) saturate(1.25)";
+    ctx.globalAlpha = 0.5;
+    ctx.drawImage(video, 0, 0, W, H);        // 디테일 살리기
+    ctx.restore();
+    ctx.fillStyle = "rgba(255,170,200,.07)"; // 분홍 광
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
+  }
   ctx.lineJoin = "round"; ctx.lineCap = "round";
   if (!faces.length) drawGuide(t);   // 얼굴 없으면 가이드 타원
   else faces.forEach((f, i) => {
@@ -224,6 +269,7 @@ function drawMask(f, c, t, seed) {
   const wob = wig(seed, t, 0.03);
   const cx = f.box.x + f.box.w / 2, cy = f.box.y + f.box.h / 2;
   ctx.translate(cx, cy); ctx.rotate(wob); ctx.translate(-cx, -cy);
+  eyeGlow(f);
   if (c === "panda") maskPanda(f, t, seed);
   else if (c === "rabbit") maskRabbit(f, t, seed);
   else if (c === "cat") maskCat(f, t, seed);
@@ -231,7 +277,7 @@ function drawMask(f, c, t, seed) {
   else maskFrog(f, t, seed);
   ctx.restore();
 }
-const E = (x, y, rx, ry, fill, stroke, lw = 5) => {
+const E = (x, y, rx, ry, fill, stroke, lw = 6) => {
   ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
   if (fill) { ctx.fillStyle = fill; ctx.fill(); }
   if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
@@ -248,35 +294,43 @@ function blush(x, y, r) { E(x, y, r, r * 0.65, "rgba(255,120,160,.75)", null); }
 function maskPanda(f, t, s) {
   const { box } = f, cx = box.x + box.w / 2, cy = box.y + box.h / 2;
   const jx = wig(s, t, box.w * 0.008);
-  E(cx - box.w * 0.42 + jx, box.y + box.h * 0.04, box.w * 0.17, box.h * 0.15, "#2b2b2b", "#111", 4);
-  E(cx + box.w * 0.42 + jx, box.y + box.h * 0.04, box.w * 0.17, box.h * 0.15, "#2b2b2b", "#111", 4);
+  E(cx - box.w * 0.42 + jx, box.y + box.h * 0.04, box.w * 0.19, box.h * 0.17, "#2b2b2b", "#111", 5);
+  E(cx + box.w * 0.42 + jx, box.y + box.h * 0.04, box.w * 0.19, box.h * 0.17, "#2b2b2b", "#111", 5);
   // 얼굴은 가리지 않고 눈 패치만
   const ang = 0.5;
   [[f.leye, -1], [f.reye, 1]].forEach(([e]) => {
     ctx.save(); ctx.translate(e.x + jx, e.y); ctx.rotate(ang * (e === f.leye ? 1 : -1));
-    E(0, 0, box.w * 0.14, box.h * 0.17, "#2b2b2b", null);
-    sparkle(0, 0, box.w * 0.035);
+    E(0, 0, box.w * 0.155, box.h * 0.185, "rgba(43,43,43,.95)", null);
+    sparkle(0, -box.h * 0.03, box.w * 0.045);
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(box.w * 0.05, box.h * 0.05, box.w * 0.016, 0, 7); ctx.fill();
     ctx.restore();
   });
-  E(f.nose.x + jx, f.nose.y + box.h * 0.06, box.w * 0.06, box.h * 0.045, "#2b2b2b", null); // 코입
-  ctx.strokeStyle = "#2b2b2b"; ctx.lineWidth = 5; ctx.beginPath();
-  ctx.moveTo(f.nose.x + jx, f.nose.y + box.h * 0.1);
-  ctx.quadraticCurveTo(f.nose.x - box.w * 0.06 + jx, f.mouth.y, f.nose.x - box.w * 0.1 + jx, f.mouth.y);
-  ctx.moveTo(f.nose.x + jx, f.nose.y + box.h * 0.1);
-  ctx.quadraticCurveTo(f.nose.x + box.w * 0.06 + jx, f.mouth.y, f.nose.x + box.w * 0.1 + jx, f.mouth.y);
+  plusSparkle(cx + box.w * 0.52 + jx, box.y - box.h * 0.04 + wig(s + 9, t, 4), box.w * 0.035, "#ffe066");
+  const nx = f.nose.x + jx, ny = f.nose.y + box.h * 0.06;
+  E(nx, ny, box.w * 0.075, box.h * 0.058, "#2b2b2b", null); // 코 (큼+광)
+  ctx.fillStyle = "rgba(255,255,255,.9)";
+  ctx.beginPath(); ctx.arc(nx - box.w * 0.022, ny - box.h * 0.016, box.w * 0.015, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#2b2b2b"; ctx.lineWidth = 6; ctx.beginPath(); // ω 입
+  const my = f.mouth.y;
+  ctx.moveTo(nx, ny + box.h * 0.05);
+  ctx.quadraticCurveTo(nx - box.w * 0.045, my - 2, nx - box.w * 0.088, my + 3);
+  ctx.moveTo(nx, ny + box.h * 0.05);
+  ctx.quadraticCurveTo(nx + box.w * 0.045, my - 2, nx + box.w * 0.088, my + 3);
   ctx.stroke();
-  blush(f.leye.x - box.w * 0.16 + jx, f.leye.y + box.h * 0.2, box.w * 0.06);
-  blush(f.reye.x + box.w * 0.16 + jx, f.reye.y + box.h * 0.2, box.w * 0.06);
+  blush(f.leye.x - box.w * 0.17 + jx, f.leye.y + box.h * 0.2, box.w * 0.075);
+  blush(f.reye.x + box.w * 0.17 + jx, f.reye.y + box.h * 0.2, box.w * 0.075);
 }
 // 토끼
 function maskRabbit(f, t, s) {
   const { box } = f, cx = box.x + box.w / 2;
   const sway = wig(s, t, box.w * 0.02);
-  [[-1], [1]].forEach(([d]) => { // 긴 귀
+  [[-1], [1]].forEach(([d]) => { // 긴 귀 (큼+광)
     const ex = cx + d * box.w * 0.2 + sway * d, ey = box.y - box.h * 0.42;
     ctx.save(); ctx.translate(ex, ey); ctx.rotate(d * 0.12 + sway * 0.01);
-    E(0, 0, box.w * 0.11, box.h * 0.34, "#f5f5f5", "#222", 6);
-    E(0, box.h * 0.03, box.w * 0.05, box.h * 0.2, "#ffb3c7", null);
+    E(0, 0, box.w * 0.125, box.h * 0.37, "#fdfdfd", "#222", 7);
+    E(0, box.h * 0.03, box.w * 0.058, box.h * 0.22, "#ffb3c7", null);
+    ctx.strokeStyle = "rgba(255,255,255,.9)"; ctx.lineWidth = 4; ctx.beginPath();
+    ctx.moveTo(-box.w * 0.07, -box.h * 0.25); ctx.quadraticCurveTo(-box.w * 0.09, 0, -box.w * 0.06, box.h * 0.2); ctx.stroke();
     ctx.restore();
   });
   const cy = box.y + box.h / 2, jx = wig(s + 3, t, box.w * 0.008);
@@ -289,38 +343,43 @@ function maskRabbit(f, t, s) {
     ctx.moveTo(sx, sy - 7); ctx.lineTo(sx, sy + 7); ctx.stroke();
     sparkle(sx + d * 10, sy + 8, box.w * 0.012);
   });
-  E(f.nose.x + jx, f.nose.y + box.h * 0.05, box.w * 0.045, box.h * 0.035, "#ff8fb3", "#e05585", 3); // 분홍코
-  ctx.fillStyle = "#fff"; ctx.strokeStyle = "#222"; ctx.lineWidth = 4; // 앞니
-  const tw = box.w * 0.09, th = box.h * 0.09, tx = f.mouth.x - tw / 2 + jx, ty = f.mouth.y;
-  ctx.beginPath(); ctx.roundRect(tx, ty, tw, th, 5); ctx.fill(); ctx.stroke();
+  heartNose(f.nose.x + jx, f.nose.y + box.h * 0.04, box.w * 0.055, "#ff7fa0"); // 하트 코
+  ctx.fillStyle = "rgba(255,255,255,.9)";
+  ctx.beginPath(); ctx.arc(f.nose.x - box.w * 0.015 + jx, f.nose.y + box.h * 0.02, box.w * 0.012, 0, 7); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.strokeStyle = "#222"; ctx.lineWidth = 5; // 앞니 (큼)
+  const tw = box.w * 0.11, th = box.h * 0.11, tx = f.mouth.x - tw / 2 + jx, ty = f.mouth.y;
+  ctx.beginPath(); ctx.roundRect(tx, ty, tw, th, 7); ctx.fill(); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(tx + tw / 2, ty); ctx.lineTo(tx + tw / 2, ty + th); ctx.stroke();
-  blush(f.leye.x - box.w * 0.15 + jx, f.leye.y + box.h * 0.18, box.w * 0.06);
-  blush(f.reye.x + box.w * 0.15 + jx, f.reye.y + box.h * 0.18, box.w * 0.06);
+  ctx.fillStyle = "#ff9db8"; // 수염점
+  [-1, 1].forEach(d => [0.1, 0.16, 0.22].forEach(k => {
+    ctx.beginPath(); ctx.arc(f.nose.x + d * box.w * 0.19 + jx, f.nose.y + box.h * k, 2.6, 0, 7); ctx.fill();
+  }));
+  blush(f.leye.x - box.w * 0.16 + jx, f.leye.y + box.h * 0.18, box.w * 0.07);
+  blush(f.reye.x + box.w * 0.16 + jx, f.reye.y + box.h * 0.18, box.w * 0.07);
 }
 // 고양이
 function maskCat(f, t, s) {
   const { box } = f, cx = box.x + box.w / 2, cy = box.y + box.h / 2;
   const jx = wig(s, t, box.w * 0.008);
-  [[-1], [1]].forEach(([d]) => { // 삼각귀
+  [[-1], [1]].forEach(([d]) => { // 삼각귀 (큼+광)
     const bx = cx + d * box.w * 0.34 + jx, by = box.y + box.h * 0.06;
-    ctx.fillStyle = "#f5a742"; ctx.strokeStyle = "#222"; ctx.lineWidth = 6;
+    ctx.fillStyle = "#f5a742"; ctx.strokeStyle = "#222"; ctx.lineWidth = 7;
     ctx.beginPath();
-    ctx.moveTo(bx - box.w * 0.14, by + box.h * 0.12);
-    ctx.lineTo(bx + d * box.w * 0.02, by - box.h * 0.22);
-    ctx.lineTo(bx + box.w * 0.16, by + box.h * 0.1);
+    ctx.moveTo(bx - box.w * 0.155, by + box.h * 0.12);
+    ctx.lineTo(bx + d * box.w * 0.02, by - box.h * 0.25);
+    ctx.lineTo(bx + box.w * 0.175, by + box.h * 0.1);
     ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = "#ffb3c7";
+    ctx.fillStyle = "#ffc7d6";
     ctx.beginPath();
-    ctx.moveTo(bx - box.w * 0.05, by + box.h * 0.06);
-    ctx.lineTo(bx + d * box.w * 0.02, by - box.h * 0.1);
-    ctx.lineTo(bx + box.w * 0.07, by + box.h * 0.05);
+    ctx.moveTo(bx - box.w * 0.055, by + box.h * 0.06);
+    ctx.lineTo(bx + d * box.w * 0.02, by - box.h * 0.11);
+    ctx.lineTo(bx + box.w * 0.075, by + box.h * 0.05);
     ctx.closePath(); ctx.fill();
   });
   // 얼굴은 가리지 않고 귀·줄무늬·아이라인만
-  ctx.strokeStyle = "#7a4a12"; ctx.lineWidth = 5; // 이마 줄무늬
+  ctx.fillStyle = "#7a4a12"; // 이마 줄무늬 (동글)
   [-0.2, 0, 0.2].forEach(k => {
-    ctx.beginPath(); ctx.moveTo(cx + box.w * k + jx, box.y + box.h * 0.02);
-    ctx.lineTo(cx + box.w * k + jx, box.y + box.h * 0.14); ctx.stroke();
+    E(cx + box.w * k + jx, box.y + box.h * 0.08, box.w * 0.028, box.h * 0.05, "#7a4a12", null);
   });
   // 눈은 가리지 않고 아이라인만 (눈 위 선 + 눈꼬리 삐침)
   [[f.leye, -1], [f.reye, 1]].forEach(([e, d]) => {
@@ -331,13 +390,15 @@ function maskCat(f, t, s) {
     ctx.stroke();
     sparkle(e.x - d * box.w * 0.07 + jx, e.y - box.h * 0.09, box.w * 0.013);
   });
-  E(f.nose.x + jx, f.nose.y + box.h * 0.05, box.w * 0.04, box.h * 0.03, "#e05585", null); // 코+입
-  ctx.strokeStyle = "#222"; ctx.lineWidth = 4; ctx.beginPath();
-  ctx.moveTo(f.nose.x + jx, f.nose.y + box.h * 0.08);
+  heartNose(f.nose.x + jx, f.nose.y + box.h * 0.04, box.w * 0.05, "#e05585"); // 하트 코
+  ctx.strokeStyle = "#222"; ctx.lineWidth = 5; ctx.beginPath(); // ω 입
+  ctx.moveTo(f.nose.x + jx, f.nose.y + box.h * 0.09);
   ctx.quadraticCurveTo(f.nose.x - box.w * 0.05 + jx, f.mouth.y, f.nose.x - box.w * 0.09 + jx, f.mouth.y - 2);
-  ctx.moveTo(f.nose.x + jx, f.nose.y + box.h * 0.08);
+  ctx.moveTo(f.nose.x + jx, f.nose.y + box.h * 0.09);
   ctx.quadraticCurveTo(f.nose.x + box.w * 0.05 + jx, f.mouth.y, f.nose.x + box.w * 0.09 + jx, f.mouth.y - 2);
   ctx.stroke();
+  blush(f.leye.x - box.w * 0.16 + jx, f.nose.y + box.h * 0.16, box.w * 0.06);
+  blush(f.reye.x + box.w * 0.16 + jx, f.nose.y + box.h * 0.16, box.w * 0.06);
   ctx.strokeStyle = "rgba(60,60,60,.9)"; ctx.lineWidth = 3; // 수염
   [-1, 1].forEach(d => [0.12, 0.2].forEach((k, i) => {
     ctx.beginPath();
@@ -350,16 +411,18 @@ function maskCat(f, t, s) {
 function maskBear(f, t, s) {
   const { box } = f, cx = box.x + box.w / 2, cy = box.y + box.h / 2;
   const jx = wig(s, t, box.w * 0.008);
-  [[-1], [1]].forEach(([d]) => { // 둥근 귀
-    E(cx + d * box.w * 0.4 + jx, box.y + box.h * 0.05, box.w * 0.15, box.h * 0.13, "#8a5a2b", "#222", 6);
-    E(cx + d * box.w * 0.4 + jx, box.y + box.h * 0.05, box.w * 0.07, box.h * 0.06, "#e8c39a", null);
+  [[-1], [1]].forEach(([d]) => { // 둥근 귀 (큼+광)
+    E(cx + d * box.w * 0.4 + jx, box.y + box.h * 0.05, box.w * 0.17, box.h * 0.15, "#8a5a2b", "#222", 7);
+    E(cx + d * box.w * 0.4 + jx, box.y + box.h * 0.05, box.w * 0.08, box.h * 0.07, "#e8c39a", null);
   });
   // 얼굴은 가리지 않고 귀·주둥이(입 주변만)만
   E(cx + jx, f.mouth.y - box.h * 0.06, box.w * 0.22, box.h * 0.2, "rgba(232,195,154,.95)", null); // 주둥이
   // 눈은 가리지 않고 눈 밑 꿀 반짝이만
   [f.leye, f.reye].forEach(e => sparkle(e.x + jx + box.w * 0.05, e.y + box.h * 0.07, box.w * 0.016));
-  E(f.nose.x + jx, f.nose.y + box.h * 0.04, box.w * 0.07, box.h * 0.05, "#3a2410", null);
-  ctx.strokeStyle = "#3a2410"; ctx.lineWidth = 4; ctx.beginPath();
+  E(f.nose.x + jx, f.nose.y + box.h * 0.04, box.w * 0.08, box.h * 0.058, "#3a2410", null); // 코 (큼+광)
+  ctx.fillStyle = "rgba(255,255,255,.9)";
+  ctx.beginPath(); ctx.arc(f.nose.x - box.w * 0.022 + jx, f.nose.y + box.h * 0.022, box.w * 0.015, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#3a2410"; ctx.lineWidth = 5; ctx.beginPath();
   ctx.moveTo(f.nose.x + jx, f.nose.y + box.h * 0.09);
   ctx.lineTo(f.nose.x + jx, f.mouth.y);
   ctx.moveTo(f.nose.x + jx, f.mouth.y);
@@ -372,18 +435,18 @@ function maskBear(f, t, s) {
 function maskFrog(f, t, s) {
   const { box } = f, cx = box.x + box.w / 2, cy = box.y + box.h / 2;
   const jx = wig(s, t, box.w * 0.01), pop = 1 + Math.sin(t * 0.004 + s) * 0.05;
-  [[f.leye, -1], [f.reye, 1]].forEach(([e]) => { // 눈툭튀
-    E(e.x + jx, box.y - box.h * 0.02, box.w * 0.13 * pop, box.h * 0.13 * pop, "#4caf50", "#222", 6);
-    E(e.x + jx, box.y - box.h * 0.02, box.w * 0.075, box.h * 0.075, "#fff", "#222", 3);
-    E(e.x + jx, box.y - box.h * 0.02, box.w * 0.032, box.h * 0.032, "#222", null);
-    sparkle(e.x + jx - 4, box.y - box.h * 0.05, box.w * 0.014);
+  [[f.leye, -1], [f.reye, 1]].forEach(([e]) => { // 눈툭튀 (큼+광)
+    E(e.x + jx, box.y - box.h * 0.02, box.w * 0.15 * pop, box.h * 0.15 * pop, "#4caf50", "#222", 7);
+    E(e.x + jx, box.y - box.h * 0.02, box.w * 0.085, box.h * 0.085, "#fff", "#222", 4);
+    E(e.x + jx, box.y - box.h * 0.02, box.w * 0.036, box.h * 0.036, "#222", null);
+    sparkle(e.x + jx - 5, box.y - box.h * 0.06, box.w * 0.018);
   });
   // 얼굴은 가리지 않고 눈툭튀·웃음·볼터치만
-  ctx.strokeStyle = "#1d5c22"; ctx.lineWidth = 6; ctx.beginPath(); // 활짝 웃음
+  ctx.strokeStyle = "#1d5c22"; ctx.lineWidth = 7; ctx.beginPath(); // 활짝 웃음 (굵게)
   ctx.arc(cx + jx, f.mouth.y - box.h * 0.12, box.w * 0.2, 0.15 * Math.PI, 0.85 * Math.PI);
   ctx.stroke();
-  blush(f.leye.x - box.w * 0.17 + jx, f.mouth.y - box.h * 0.08, box.w * 0.06);
-  blush(f.reye.x + box.w * 0.17 + jx, f.mouth.y - box.h * 0.08, box.w * 0.06);
+  blush(f.leye.x - box.w * 0.18 + jx, f.mouth.y - box.h * 0.08, box.w * 0.07);
+  blush(f.reye.x + box.w * 0.18 + jx, f.mouth.y - box.h * 0.08, box.w * 0.07);
   E(cx - box.w * 0.3 + jx, box.y + box.h * 0.3, box.w * 0.03, box.h * 0.03, "#2e7d32", null); // 점박이
   E(cx + box.w * 0.32 + jx, box.y + box.h * 0.45, box.w * 0.025, box.h * 0.025, "#2e7d32", null);
 }
@@ -391,15 +454,8 @@ function maskFrog(f, t, s) {
 // ---------- 사진 저장 ----------
 $("btnShot").onclick = () => {
   if (!video.videoWidth) return toast("카메라 준비 중…");
-  const out = document.createElement("canvas");
-  out.width = video.videoWidth; out.height = video.videoHeight;
-  const o = out.getContext("2d");
-  o.save();
-  if (mirror()) { o.translate(out.width, 0); o.scale(-1, 1); }
-  o.drawImage(video, 0, 0);
-  o.restore();
-  o.drawImage(canvas, 0, 0);
-  out.toBlob(async (blob) => {
+  // 화면(canvas)에 이미 뽀샤시+가면까지 다 그려져 있으니 그대로 저장
+  canvas.toBlob(async (blob) => {
     if (!blob) return;
     const file = new File([blob], `gamyun-${Date.now()}.jpg`, { type: "image/jpeg" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {

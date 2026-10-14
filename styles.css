@@ -1,10 +1,9 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overflow:hidden;background:#222;font-family:'Jua','Hiragino Round','Malgun Gothic',system-ui,sans-serif}
 #stage{position:fixed;inset:0;overflow:hidden;background:#000}
-#cam,#art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-#cam{background:#111}
+#cam{position:absolute;left:0;top:0;width:8px;height:8px;opacity:0;pointer-events:none}
+#art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 #art{pointer-events:none}
-#cam.mirror{transform:scaleX(-1)}
 
 #topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;pointer-events:none}
 .logo{background:#fff;border:3px solid #222;border-radius:20px;padding:6px 14px;font-weight:800;transform:rotate(-3deg);box-shadow:3px 3px 0 #222;white-space:nowrap}
