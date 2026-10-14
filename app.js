@@ -1,6 +1,6 @@
 // 가면카메라 — 얼굴에 판다/토끼/고양이/곰/개구리 가면을 씌운다
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
-import { drawMask, CHARS } from "./masks.js?v=9";
+import { drawMask, CHARS } from "./masks.js?v=10";
 
 const $ = (id) => document.getElementById(id);
 const video = $("cam"), canvas = $("art"), ctx = canvas.getContext("2d");
@@ -131,6 +131,7 @@ function setupZoom() {
     const mn = Math.round(hwZoom.min * 10) / 10;
     if (mn < 1 && !levels.includes(mn)) levels.unshift(mn);
     if (!levels.includes(1)) levels.push(1);
+    if (!levels.includes(0.5)) levels.unshift(0.5); // 폰 배율이 0.5까지 안 내려가도 0.5는 항상 (모자란 만큼 화면 축소)
     levels = [...new Set(levels)].sort((a, b) => a - b).slice(0, 5);
   } else levels = [0.5, 0.7, 1, 2];
   bar.innerHTML = "";
@@ -146,8 +147,9 @@ function setupZoom() {
 async function setZoom(v, quiet) {
   document.querySelectorAll(".zoom-chip").forEach(b => b.classList.toggle("active", +b.dataset.z === v));
   if (hwZoom) {
-    swZoom = 1;
-    try { await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ zoom: v }] }); }
+    const hw = Math.min(hwZoom.max, Math.max(hwZoom.min, v));
+    swZoom = v / hw; // 폰 배율 최소보다 낮으면 나머지는 화면 축소로
+    try { await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ zoom: hw }] }); }
     catch (e) { console.warn("배율 실패:", e); hwZoom = null; swZoom = v; } // 하드웨어 실패 → 화면 배율로
   } else swZoom = v;
   if (!quiet) toast(`🔍 ${v}x`, 900);
